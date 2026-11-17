@@ -1,245 +1,175 @@
-# Genuine screenshot evidence
 
-Open interactive Bash in WSL Ubuntu, change into the project directory and set your actual complete SRN before taking any screenshots.
+# Campus Compute: Project Evidence
 
-```bash
-export SRN='REPLACE_WITH_YOUR_ACTUAL_FULL_SRN'
-export PS1='[$SRN] \w\$ '
-```
+## 1. Overview
 
-Replace the placeholder with your full university SRN. Keep the SRN visible in the terminal prompt in **every screenshot**. Capture the real command and the relevant real output together. Adjust the terminal height or font size before capturing long output. Execute the commands yourself in order. Save the captures as S01 through S24.
+This directory contains screenshot evidence of the development, implementation, compilation and testing of the Campus Compute Operating Systems project.
 
-## S01 — Environment and SRN prompt
+The evidence covers the major operating system concepts implemented in the application, including CPU scheduling, multithreading, synchronization, inter-process communication, deadlock avoidance, process management and resource management.
+
+Each section describes the functionality demonstrated and includes the corresponding command used for execution.
+
+## 2. Development Environment and Project Setup (S01–S04)
+
+The initial evidence establishes the development environment used for the project, including the Ubuntu operating system, Linux kernel, university SRN, GCC compiler and GNU Make.
+
+The project directory structure demonstrates the organization of source files, header files, test fixtures and documentation. A clean build verifies that all modules compile and link successfully into the final executable.
+
+**Commands:**
 
 ```bash
 printf 'SRN: %s\n' "$SRN"; uname -sr; cat /etc/os-release
-```
-
-**Evidence** — SRN prompt and Ubuntu identification.
-
-The shell identifies the Linux environment used for the project.
-
-## S02 — Compiler and build tools
-
-```bash
-gcc --version | head -n 1; make --version | head -n 1
-```
-
-**Evidence** — Compiler and Make versions.
-
-GCC compiles the modules and Make coordinates the build.
-
-## S03 — Project files
-
-```bash
-find include src tests evidence -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' | sort; ls -l Makefile README.md
-```
-
-**Evidence** — Source, headers, fixtures and documentation.
-
-Each OS feature has a dedicated module.
-
-## S04 — Clean build
-
-```bash
+gcc --version | head -n 1
+make --version | head -n 1
+find include src tests evidence -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' | sort
+ls -l Makefile README.md
 make clean && make
 ```
 
-**Evidence** — Fresh GCC compilation and link.
+## 3. Command-Line Interface (S05)
 
-All modules are compiled into one executable.
+The application provides a command-line interface through which users can access the different functionalities independently. The help command displays the supported commands and their syntax.
 
-## S05 — CLI help
+**Command:**
 
 ```bash
 ./campuscompute help
 ```
 
-**Evidence** — Command syntax.
+## 4. CPU Scheduling and Job Management (S06–S09)
 
-The CLI exposes each feature independently.
+The job management module loads process information from CSV files. The scheduling module implements three CPU scheduling algorithms:
 
-## S06 — FCFS scheduling
+- **First Come First Serve (FCFS):** Processes are executed according to their arrival order.
+- **Round Robin (RR):** CPU time is distributed among processes using a configurable time quantum, allowing preemption.
+- **Priority Scheduling:** Processes are selected according to their assigned priority.
+
+The scheduling outputs display execution timelines, idle intervals and performance metrics such as waiting time and turnaround time. The comparison module evaluates the three algorithms using the same workload.
+
+**Commands:**
 
 ```bash
 ./campuscompute schedule fcfs tests/jobs.csv
-```
-
-**Evidence** — Timeline, idle intervals and job metrics.
-
-Earlier arrivals run first, with input order breaking ties.
-
-## S07 — Round Robin scheduling
-
-```bash
 ./campuscompute schedule rr tests/jobs.csv 2
-```
-
-**Evidence** — Time slices, preemption and metrics.
-
-A job that still needs CPU time rejoins the ready queue.
-
-## S08 — Priority scheduling
-
-```bash
 ./campuscompute schedule priority tests/jobs.csv
-```
-
-**Evidence** — Priority dispatch order and metrics.
-
-The highest-priority ready job runs to completion.
-
-## S09 — Scheduling comparison
-
-```bash
 ./campuscompute compare tests/jobs.csv
 ```
 
-**Evidence** — Three metric rows for the same workload.
+## 5. Producer-Consumer Problem and Thread Synchronization (S10–S11)
 
-Average waiting and turnaround times differ by policy.
+The logger module demonstrates the Producer-Consumer problem using multiple producer threads and a consumer thread.
 
-## S10 — Producer-consumer logger
+Producers generate activity records and place them into a shared queue, while the consumer retrieves and processes the records. Synchronization ensures coordinated access to the queue and orderly thread termination.
+
+**Commands:**
 
 ```bash
 ./campuscompute logger
-```
-
-**Evidence** — Enqueue and dequeue trace.
-
-Two producers hand activity records to one consumer.
-
-## S11 — Thread synchronization and termination
-
-```bash
 ./campuscompute logger | tail -n 8
 ```
 
-**Evidence** — Queue activity, totals and joins.
+## 6. Inter-Process Communication (S12–S13)
 
-The consumer drains the queue before all threads finish.
+The IPC module demonstrates communication between parent and child processes using shared memory.
 
-## S12 — Shared-memory IPC
+The processes exchange job information through a shared memory mapping. Semaphores coordinate request and response operations, ensuring synchronized access to shared data. The implementation also demonstrates process completion and IPC resource cleanup.
+
+**Commands:**
 
 ```bash
 ./campuscompute ipc
-```
-
-**Evidence** — Parent and child PIDs, job data and result.
-
-Both processes exchange the job through a shared mapping.
-
-## S13 — Semaphore coordination and cleanup
-
-```bash
 ./campuscompute ipc && ./campuscompute cleanup
 ```
 
-**Evidence** — Semaphore operations, child exit and cleanup.
+## 7. Deadlock Avoidance Using Banker's Algorithm (S14–S15)
 
-The request and reply signals coordinate shared-memory access.
+The Banker's Algorithm module evaluates resource-allocation states to determine whether a safe execution sequence exists.
 
-## S14 — Banker's safe state
+The safe-state test demonstrates the allocation matrix, remaining resource requirements, available resources and resulting safe sequence. The unsafe-state test demonstrates a resource allocation for which no safe sequence can be established.
+
+**Commands:**
 
 ```bash
 ./campuscompute banker tests/banker_safe.txt
-```
-
-**Evidence** — Need matrix, Work progression and safe sequence.
-
-Each simulated completion returns resources to Work.
-
-## S15 — Banker's unsafe state
-
-```bash
 ./campuscompute banker tests/banker_unsafe.txt
 ```
 
-**Evidence** — Unsafe classification and unfinished processes.
+## 8. Process Creation and Failure Handling (S16–S17)
 
-Neither process can meet its remaining claim with the current Work vector.
+The worker module demonstrates parent-child process creation and process termination handling.
 
-## S16 — Normal worker
+The normal execution scenario demonstrates successful child process completion. The failure scenario simulates an unsuccessful child process termination, allowing the parent to detect and report the nonzero exit status.
+
+**Commands:**
 
 ```bash
 ./campuscompute worker normal
-```
-
-**Evidence** — Computation and reaped exit status zero.
-
-The parent confirms the child completed normally.
-
-## S17 — Simulated worker failure
-
-```bash
 ./campuscompute worker fail
 ```
 
-**Evidence** — Controlled failure message and reaped status 42.
+## 9. Resource Management (S18)
 
-The parent observes the child's deliberate nonzero exit.
+The resource-limit module demonstrates operating system resource restrictions.
 
-## S18 — Resource-limit demonstration
+The implementation displays the original resource limits, applies a modified soft limit and demonstrates how the operating system enforces restrictions on file operations. Cleanup operations are also performed.
+
+**Command:**
 
 ```bash
 ./campuscompute limit
 ```
 
-**Evidence** — Original limits, applied soft limit, write results and cleanup.
+## 10. Input Validation and Error Handling (S19)
 
-The child observes how Linux enforces its file-size limit.
+The application is tested with invalid commands and scheduling parameters to demonstrate input validation and error handling.
 
-## S19 — Invalid command/input
+An unsupported command and a zero Round Robin time quantum are supplied to verify that invalid inputs are rejected and appropriate nonzero exit codes are returned.
+
+**Command:**
 
 ```bash
 ./campuscompute unknown; printf 'exit=%s\n' "$?"; ./campuscompute schedule rr tests/jobs.csv 0; printf 'exit=%s\n' "$?"
 ```
 
-**Evidence** — Usage errors and nonzero exit codes.
+## 11. Cleanup and Log Management (S20, S22)
 
-The CLI rejects an unknown command and a zero quantum.
+The cleanup functionality manages temporary application resources while retaining the activity log.
 
-## S20 — Cleanup verification
+The generated log file contains timestamped event records, including activity descriptions and producer information. This demonstrates persistent logging of application events.
+
+**Commands:**
 
 ```bash
 ./campuscompute cleanup && ls -l logs/campuscompute.log
+tail -n 10 logs/campuscompute.log
 ```
 
-**Evidence** — Cleanup result and retained log.
+## 12. Integrated Project Demonstration (S21)
 
-Cleanup preserves the activity log.
+The integrated demonstration executes multiple project functionalities through a single command. Its output provides a summary of the individual module executions and their results.
 
-## S21 — Integrated execution
+This demonstrates how the different operating system components are brought together within the Campus Compute application.
+
+**Command:**
 
 ```bash
 ./campuscompute demo > demo-output.txt 2>&1; demo_status=$?; tail -n 14 demo-output.txt; printf 'demo exit=%s\n' "$demo_status"
 ```
 
-**Evidence** — Integrated summary and exit status.
+## 13. Final Project Files and Submission Archive (S23–S24)
 
-The summary reports the result of each module invocation.
+The final evidence documents the completed project structure, including the Makefile, README, source files, header files, test fixtures and compiled executable.
 
-## S22 — Generated logs
+The submission archive packages the source code, documentation and test fixtures required to rebuild and test the application. Archive integrity is checked to verify that the generated ZIP file is valid.
 
-```bash
-tail -n 10 logs/campuscompute.log
-```
-
-**Evidence** — Timestamped event records.
-
-The consumer records the type, producer and description.
-
-## S23 — Final source/build files
+**Commands:**
 
 ```bash
-ls -l Makefile README.md campuscompute; find include src tests -maxdepth 1 -type f | sort
+ls -l Makefile README.md campuscompute
+find include src tests -maxdepth 1 -type f | sort
 ```
 
-**Evidence** — Final source files, executable and build artifacts.
-
-Make produced the executable and per-module object files.
-
-## S24 — Submission ZIP and integrity check
+Create and verify the submission archive:
 
 ```bash
 cd ..
@@ -248,12 +178,10 @@ unzip -t "${SRN}_CampusCompute.zip"
 cd campuscompute
 ```
 
-**Evidence** — Archive creation and integrity-test result.
+## 14. Conclusion
 
-The archive includes source and fixtures for a clean build.
+The evidence demonstrates the implementation and execution of the major operating system concepts incorporated into Campus Compute.
 
-## Assemble the evidence PDF
+The application brings together CPU scheduling, job management, multithreading, synchronization, inter-process communication, deadlock avoidance, process management, resource management and logging in a single command-line application.
 
-Insert the 24 genuine captures in order in a document editor. Label each image S01–S24 and place its one-line explanation below it. Keep prompts and relevant output legible at normal zoom. Export one PDF named using your actual complete SRN followed by `.pdf`. Open the PDF and verify the numbering, all SRN prompts and all captions. Submit that PDF as the evidence artifact. A separate report is unnecessary.
-
-S24 archives project sources, documentation and test fixtures. The evidence directory, generated logs, demo transcript, executable and compiler artifacts are excluded. Include evidence in the ZIP only if the submission instructions explicitly require it. Use a fresh archive name or move an older archive aside before repeating S24, since updating an existing ZIP can retain obsolete entries.
+The screenshots provide execution-level evidence of the individual modules, their expected behaviour, error handling and integration into the completed project.
