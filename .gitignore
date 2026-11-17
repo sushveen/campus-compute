@@ -1,0 +1,4 @@
+*.o
+*.d
+campuscompute
+.DS_Store
