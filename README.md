@@ -1,93 +1,256 @@
+
 # CampusCompute
 
 **Intelligent Job Scheduling and Resource Management**  
-UE25CS242A — Operating Systems
+UE25CS242A: Operating Systems
 
-CampusCompute simulates jobs submitted to a university computing lab. CPU scheduling runs as a deterministic simulation on a logical clock. The logger uses real POSIX threads, while the IPC, worker and file-size experiments spawn real Linux child processes.
+## 1. Project Overview
 
-## Build on Ubuntu or WSL Ubuntu
+CampusCompute is an Operating Systems project that simulates jobs submitted to a university computing lab. It brings together CPU scheduling, job management, thread synchronization, inter-process communication, deadlock avoidance and resource management in a single command-line application.
 
-On Windows, if Ubuntu isn't installed yet, open an administrator PowerShell, run `wsl --install -d Ubuntu`, and finish Ubuntu's initial setup. Then, in the Ubuntu terminal, move into this project directory. A Windows checkout under `C:\Users` can be reached at `/mnt/c/Users`.
+CPU scheduling is implemented as a deterministic simulation using a logical clock. The logger demonstrates real POSIX threads, while the IPC, worker and file-size experiments use actual Linux child processes.
 
-```bash
-sudo apt update
-sudo apt install build-essential zip unzip
-make clean
-make
-make test
-```
+The project uses GCC and Make for compilation and relies on standard Ubuntu command-line tools.
 
-The project relies on GCC, Make, Bash, and the standard Ubuntu command-line tools. The ZIP tools are only needed for packaging. `make rebuild` does a clean build, and `make clean` deletes the executable, object files and dependency files.
+## 2. Build Environment
 
-## Commands
+The project is designed to run on Ubuntu and WSL Ubuntu. It uses GCC, Make and Bash to compile and execute the application.
 
-Run all of these from the project directory.
+The Makefile manages compilation and provides targets for building, testing, rebuilding and cleaning the project. A clean build removes previously generated executable, object and dependency files before compiling the source files again.
 
-```bash
-./campuscompute help
-./campuscompute jobs tests/jobs.csv
-./campuscompute schedule fcfs tests/jobs.csv
-./campuscompute schedule rr tests/jobs.csv 2
-./campuscompute schedule priority tests/jobs.csv
-./campuscompute compare tests/jobs.csv
-./campuscompute logger
-./campuscompute ipc
-./campuscompute banker tests/banker_safe.txt
-./campuscompute banker tests/banker_unsafe.txt
-./campuscompute worker normal
-./campuscompute worker fail
-./campuscompute limit
-./campuscompute demo
-./campuscompute cleanup
-```
+The project also includes ZIP utilities for packaging the source code and documentation into a submission archive.
 
-For jobs, schedule and compare, leave out the CSV or pass `-` to use the repeatable built-in sample. For instance, `./campuscompute schedule rr - 3` runs the sample with a quantum of 3. An exit status of 0 means the run succeeded, which includes a demonstrated unsafe Banker state or a worker that intentionally exits with 42. Malformed data or an operational failure returns 1, and CLI usage errors return 2.
+## 3. Command-Line Interface
 
-## Input and scheduling
+CampusCompute provides a command-line interface that allows each module to be executed independently. The supported commands cover job management, scheduling algorithms, logging, IPC, Banker's Algorithm, worker processes, resource limits, integrated demonstrations and cleanup.
 
-The job CSV may begin with the exact header `id,arrival,burst,priority`, followed by one unquoted record per line. The loader accepts 1–128 jobs with unique positive integer IDs, nonnegative integer arrivals, bursts from 1 to 10,000, and priorities from 0 to 99. IDs and arrivals must fit in a signed C int. Logical times are 64-bit integers, so later completions can exceed the arrival range.
+The application supports built-in sample jobs as well as CSV input files. When no CSV file is provided, or when `-` is specified, the scheduler uses a repeatable built-in sample.
 
-- FCFS picks the job with the earliest arrival, with input order breaking arrival ties. Every record has a unique input position, so an ID tie-break is never required.
-- Round Robin uses a FIFO ready queue and a positive integer quantum (default 2). After each slice, newly arrived jobs join the tail in arrival and input order, including any that arrive exactly at the slice boundary. The preempted job is then placed behind them.
-- Non-preemptive priority selects the ready job with the lowest priority number, breaking ties by arrival and then input order. A running job holds the CPU until it completes.
+Round Robin accepts a configurable time quantum, with a default value of 2. The application also uses exit codes to distinguish successful execution, operational failures and incorrect command usage.
 
-A timeline row `[a,b)` spans logical times from a (inclusive) to b (exclusive). Idle intervals are shown explicitly. CT is the time a job finishes, TAT is CT minus arrival, and WT is TAT minus burst. Elapsed time begins at zero and ends at the last completion. Utilization is busy time divided by elapsed time, and throughput is completed jobs divided by elapsed time. Compare runs every policy on its own private copy of the same jobs, using RR quantum 2.
+A successful exit status is returned for completed operations, including the demonstration of an unsafe Banker state and a worker that intentionally exits with status 42.
 
-## Logger, IPC and resource safety
+## 4. Job Management and CPU Scheduling
 
-The logger appends to `logs/campuscompute.log`. Two producer threads each emit five lab-job lifecycle events. A mutex guards the three-slot circular queue and its counters. Producers wait on not-full and the consumer waits on not-empty, rechecking the predicate after every wakeup. The consumer releases the mutex before writing each event to the log file. Main joins the producers, closes the queue and wakes the consumer, which drains any remaining events before main joins it.
+The job management module reads process information from CSV files. Each job contains an ID, arrival time, burst time and priority.
 
-IPC creates exclusive shared-memory and named semaphore objects and opens their handles before forking. Once the handles exist, the names are removed. The inherited mapping and semaphore handles keep the objects alive until both processes release them. The parent publishes the job and posts the request semaphore. The child waits for that request, computes the number of two-unit CPU slices, and posts the reply. The parent reaps the child and waits on the reply semaphore before reading the result.
+The CSV loader validates the input before scheduling. It supports 1 to 128 jobs, requires unique positive integer IDs, nonnegative arrival times, burst times between 1 and 10,000, and priorities between 0 and 99.
 
-Banker files hold whitespace-delimited integers. The first two values give the number of processes and resource types (1–32 and 1–16). These are followed by Available, then the Allocation matrix in row order, then the Maximum matrix in row order. Each row has one value per resource type. Counts must be nonnegative. Allocation must fit within Maximum, claims must fit within the total supply, and each total must fit in a signed int. Need is Maximum minus Allocation. A process can finish if every Need entry fits in Work. When it finishes, its Allocation goes back into Work, and the search continues until every process finishes or no further progress is possible.
+Three CPU scheduling algorithms are implemented:
 
-## Workers, file-size limit and cleanup
+### First Come First Serve (FCFS)
 
-In normal mode, a child computes the sum of the first ten squares and exits 0. Failure mode deliberately exits 42. The parent calls `waitpid()` to reap each child and checks whether it exited normally or was terminated by a signal.
+FCFS selects the job that arrives earliest. If multiple jobs have the same arrival time, their input order determines which one runs first.
 
-The soft limit is the threshold that is actually enforced, and the hard limit is the ceiling for the soft limit. The limit child lowers the `RLIMIT_FSIZE` soft limit to at most 1024 bytes while keeping the hard limit. It ignores `SIGXFSZ` locally so it can inspect write return values and errno. A write may transfer some bytes before a later write fails with `EFBIG`. The initial limit determines how many bytes get written. The temporary path is unlinked once the file is open, and the open descriptor keeps the file available until the experiment ends.
+It is a non-preemptive scheduling algorithm, meaning that once a job starts executing, it continues until its burst is complete.
 
-Each run manages its own IPC and temporary file. `cleanup` checks and retries any pending cleanup that the current process is tracking. A fresh invocation owns no earlier IPC names and does not scan globally. The log is kept as evidence. For the screenshot and submission workflow, see [evidence/README.md](evidence/README.md).
+### Round Robin (RR)
 
-## Tests and limitations
+Round Robin uses a FIFO ready queue and assigns each job a fixed time quantum. The default quantum is 2, but it can be changed through the command line.
 
-`make test` builds the executable and runs timed CLI assertions covering timelines, metrics, error codes, log records, IPC, Banker outcomes, child statuses, file limits, cleanup, and both successful and failing demos. Logger and demo test runs use a temporary directory, so existing evidence logs are left untouched.
+A job executes for one time slice at a time. If it does not finish within that interval, it is placed back into the ready queue. Newly arrived jobs are added to the queue before the preempted job, including jobs arriving exactly at the end of a time slice.
 
-The scheduler models a single CPU with one burst per job, zero context-switch cost and no I/O. Banker performs a static safety check. Each OS demonstration uses a small, fixed workload. Thread interleaving, timestamps, process IDs and actual write results may vary between runs. Abrupt termination between exclusive IPC creation and the early unlink may leave an owned name behind. Cleanup ownership is tracked only within the running invocation.
+This allows CPU time to be distributed among ready jobs.
 
-## Technical Explanation
+### Priority Scheduling
 
-- **Process vs thread.** A process has its own address space. Threads within a process share that address space, including the logger queue, but each has its own stack and execution state.
-- **fork() and waitpid().** `fork()` creates a child, returning zero in the child and the child's PID in the parent. `waitpid()` collects the chosen child's status and releases its exit record.
-- **FCFS, RR and Priority.** FCFS follows arrival order. RR gives ready jobs repeated turns. Priority picks the most important ready job at dispatch time.
-- **Preemption.** RR can take the simulated CPU away when the quantum expires and return the job to the queue. FCFS and non-preemptive Priority let each dispatched job run through its whole burst.
-- **Turnaround and waiting time.** Turnaround covers the entire span from arrival to completion. With a single burst and no blocking I/O, subtracting CPU service time from it gives waiting time.
-- **Mutex vs semaphore.** A mutex has an owner and protects a critical section. A semaphore holds permits, so one process can post a permit that another process consumes.
-- **Condition variables.** A wait atomically releases the mutex while blocking and reacquires it before returning. The thread rechecks its condition in a loop because a wakeup can happen before the condition it needs is actually true.
-- **Producer-consumer problem.** Producers must wait for space in the bounded buffer, and the consumer must wait for items. The queue mutex and two condition variables coordinate both cases.
-- **Shared memory.** A shared mapping exposes the same bytes to both processes. The IPC semaphores establish when each side may read the other's updates.
-- **Race conditions.** Behavior can depend on unpredictable interleaving when concurrent operations touch shared state without coordination. Locking the logger queue keeps slot and counter updates consistent.
-- **Deadlock vs unsafe state.** Deadlock means participants are blocked waiting for progress that can never occur. An unsafe state means the safety check cannot guarantee completion under all declared maximum claims, even though the current wait relationships might still allow progress.
-- **Banker's safety algorithm.** Simulate finishing every process whose remaining Need fits in Work, returning its Allocation after each simulated finish. A complete order is a safe sequence.
-- **Resource limits.** Linux enforces limits per process. The child changes its own file-size soft limit and then observes how the kernel handles writes.
-- **Zombie processes.** A terminated child keeps an exit record until it is reaped. Each demonstration calls `waitpid()` for the child it created.
+Priority Scheduling is non-preemptive. The scheduler selects the ready job with the lowest priority number.
+
+If multiple jobs have the same priority, arrival time is considered first, followed by input order. Once a job starts executing, it continues until completion.
+
+### Scheduling Metrics
+
+The scheduler displays execution timelines, including idle intervals. Each timeline interval follows the format `[a,b)`, where the starting time is included and the ending time is excluded.
+
+The following performance metrics are calculated:
+
+- **Completion Time (CT):** The time at which a job finishes execution.
+- **Turnaround Time (TAT):** The total time between a job's arrival and completion.
+- **Waiting Time (WT):** The time a job spends waiting in the ready queue, calculated as turnaround time minus burst time.
+- **CPU Utilization:** The percentage of elapsed time during which the CPU is busy.
+- **Throughput:** The number of completed jobs per unit of elapsed time.
+
+The comparison module executes all three scheduling algorithms on separate copies of the same workload. Round Robin uses a quantum of 2 for this comparison.
+
+## 5. Logger and Thread Synchronization
+
+The logger module demonstrates the Producer-Consumer problem using POSIX threads.
+
+Two producer threads generate five lab-job lifecycle events each. These events are placed into a shared circular queue containing three slots. A consumer thread retrieves the events and appends them to `logs/campuscompute.log`.
+
+A mutex protects the shared queue and its counters, ensuring that multiple threads do not modify the same data simultaneously.
+
+Two condition variables coordinate the producers and consumer:
+
+- The not-full condition allows producers to wait when the queue has no available slots.
+- The not-empty condition allows the consumer to wait when the queue contains no events.
+
+Both conditions are checked again after every wakeup to ensure that the required condition is actually satisfied.
+
+The consumer releases the mutex before writing an event to the log file. Once both producers finish, the main thread closes the queue and wakes the consumer. The consumer processes any remaining events before terminating.
+
+This module demonstrates thread creation, synchronization, mutual exclusion and safe communication through a bounded buffer.
+
+## 6. Inter-Process Communication (IPC)
+
+The IPC module demonstrates communication between a parent process and a child process using shared memory and named semaphores.
+
+The application creates exclusive shared-memory and semaphore objects before creating the child process using `fork()`.
+
+The shared memory mapping allows both processes to access the same data. Semaphores coordinate the order in which the parent and child perform their operations.
+
+The communication process works as follows:
+
+1. The parent publishes job information in shared memory.
+2. The parent signals the child using the request semaphore.
+3. The child waits for the request.
+4. The child calculates the number of two-unit CPU slices required for the job.
+5. The child publishes its result and signals the reply semaphore.
+6. The parent collects the child's status and reads the result.
+
+The IPC object names are removed after their handles have been opened. The existing mappings and semaphore handles keep the objects available until both processes release them.
+
+This demonstrates process creation, shared memory, semaphore synchronization and parent-child communication.
+
+## 7. Deadlock Avoidance Using Banker's Algorithm
+
+The Banker's Algorithm module performs a safety check on resource allocation to determine whether the system is in a safe state.
+
+The input files contain whitespace-separated integers representing the number of processes, resource types, available resources, allocation matrix and maximum requirement matrix.
+
+The module calculates the remaining resource requirement using:
+
+**Need = Maximum − Allocation**
+
+It then checks whether a process can complete with the resources currently available in Work.
+
+If a process can finish, its allocated resources are returned to Work. The algorithm continues checking the remaining processes until either every process has completed or no further progress can be made.
+
+If all processes can finish, the system is considered safe and the resulting order is displayed as a safe sequence.
+
+If no further process can complete, the state is considered unsafe.
+
+The project includes separate test cases for safe and unsafe resource-allocation states.
+
+## 8. Worker Processes and Process Management
+
+The worker module demonstrates process creation, execution and termination using Linux child processes.
+
+A child process is created using `fork()`. The parent waits for the child using `waitpid()` and checks its termination status.
+
+Two execution modes are implemented:
+
+- **Normal mode:** The child calculates the sum of the first ten squares and exits with status 0.
+- **Failure mode:** The child deliberately exits with status 42.
+
+The parent process identifies whether the child exited normally or was terminated by a signal.
+
+This module demonstrates process creation, parent-child relationships, exit statuses and the importance of reaping terminated child processes.
+
+## 9. File-Size Resource Limits
+
+The resource-limit module demonstrates how Linux enforces process resource restrictions using `RLIMIT_FSIZE`.
+
+The soft limit represents the file-size threshold currently enforced by the operating system, while the hard limit represents the maximum value to which the soft limit can be raised.
+
+The child process lowers its file-size soft limit to at most 1024 bytes while keeping the existing hard limit unchanged.
+
+The child locally ignores `SIGXFSZ` so that it can inspect the results of write operations and the associated error codes.
+
+When a process attempts to write beyond the permitted file size, a write operation may transfer some bytes before a subsequent write fails with `EFBIG`.
+
+The initial resource limit determines how many bytes can be written during the experiment.
+
+The temporary file is unlinked after it is opened. Its open file descriptor keeps it accessible until the experiment finishes.
+
+## 10. Cleanup and Resource Management
+
+Each execution manages its own IPC objects and temporary files.
+
+The cleanup functionality checks for pending resources and retries cleanup operations that the current process is tracking.
+
+A new invocation does not own IPC names created by earlier invocations and does not scan the system globally.
+
+The application log is retained as evidence of execution. This allows the project to demonstrate resource cleanup without deleting the recorded activity history.
+
+## 11. Testing and Limitations
+
+The project includes a test suite that builds the executable and runs timed command-line assertions.
+
+The tests cover scheduling timelines, performance metrics, error codes, log records, IPC communication, Banker outcomes, child process statuses, file-size limits, cleanup operations and successful and failing integrated demonstrations.
+
+Logger and integrated demonstration tests use a temporary directory so that previously generated evidence logs remain untouched.
+
+The project has the following implementation limitations:
+
+- The scheduler models a single CPU and one burst per job.
+- Context-switching cost and I/O blocking are not included.
+- Banker's Algorithm performs a static safety check.
+- Each operating system demonstration uses a small, fixed workload.
+- Thread interleaving, timestamps, process IDs and actual write results may vary between executions.
+- Abrupt termination between exclusive IPC creation and early unlinking may leave an owned name behind.
+- Cleanup ownership is tracked only within the running invocation.
+
+## 12. Technical Concepts Demonstrated
+
+### Process vs Thread
+
+A process has its own address space, whereas threads within a process share the same address space. Threads have their own stacks and execution states.
+
+### fork() and waitpid()
+
+`fork()` creates a child process. It returns zero in the child and the child's process ID in the parent. `waitpid()` collects the child's termination status and releases its exit record.
+
+### FCFS, Round Robin and Priority Scheduling
+
+FCFS follows job arrival order. Round Robin gives ready jobs repeated CPU turns using a fixed time quantum. Priority Scheduling selects the most important ready job at dispatch time.
+
+### Preemption
+
+Preemption occurs when a running process is interrupted so that another process can use the CPU. Round Robin supports preemption when its time quantum expires. FCFS and non-preemptive Priority Scheduling allow a dispatched job to complete its entire burst.
+
+### Turnaround Time and Waiting Time
+
+Turnaround time represents the total time between arrival and completion. Since the project uses one CPU burst per job and does not include blocking I/O, waiting time is calculated by subtracting burst time from turnaround time.
+
+### Mutex vs Semaphore
+
+A mutex protects a critical section and has an owner. A semaphore maintains permits that can be released by one thread or process and acquired by another.
+
+### Condition Variables
+
+A condition-variable wait releases the associated mutex while the thread is blocked and reacquires it before returning. The thread checks its condition in a loop because a wakeup does not necessarily mean the condition has become true.
+
+### Producer-Consumer Problem
+
+Producers wait when a bounded buffer is full, while the consumer waits when it is empty. A mutex and two condition variables coordinate access to the shared queue.
+
+### Shared Memory
+
+Shared memory allows multiple processes to access the same memory region. In this project, semaphores control when each process can read or update shared information.
+
+### Race Conditions
+
+A race condition occurs when the result of concurrent operations depends on their execution order. The logger uses a mutex to keep shared queue slots and counters consistent.
+
+### Deadlock vs Unsafe State
+
+Deadlock occurs when processes are blocked waiting for progress that cannot happen. An unsafe state means the system cannot guarantee that all processes will complete under their declared maximum resource requirements, even if no deadlock currently exists.
+
+### Banker's Safety Algorithm
+
+The algorithm checks whether processes can finish with the currently available resources. When a process can complete, its allocated resources are returned to Work. If every process can finish, the resulting order is a safe sequence.
+
+### Resource Limits
+
+Linux enforces resource limits on processes. The project demonstrates how a child process changes its own file-size soft limit and how the kernel handles write operations that exceed it.
+
+### Zombie Processes
+
+A terminated child process retains an exit record until its parent collects its status. The project uses `waitpid()` to reap each child process created during its demonstrations.
+
+## 13. Conclusion
+
+CampusCompute brings together several fundamental Operating Systems concepts in one application. It demonstrates CPU scheduling, process management, thread synchronization, inter-process communication, deadlock avoidance, resource management and file handling.
+
+The project combines deterministic scheduling simulations with real Linux process and thread operations, providing practical demonstrations of how operating system mechanisms work and interact.
