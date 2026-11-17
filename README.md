@@ -75,7 +75,7 @@ Each run manages its own IPC and temporary file. `cleanup` checks and retries an
 
 The scheduler models a single CPU with one burst per job, zero context-switch cost and no I/O. Banker performs a static safety check. Each OS demonstration uses a small, fixed workload. Thread interleaving, timestamps, process IDs and actual write results may vary between runs. Abrupt termination between exclusive IPC creation and the early unlink may leave an owned name behind. Cleanup ownership is tracked only within the running invocation.
 
-## OS Viva — Technical Explanation
+## Technical Explanation
 
 - **Process vs thread.** A process has its own address space. Threads within a process share that address space, including the logger queue, but each has its own stack and execution state.
 - **fork() and waitpid().** `fork()` creates a child, returning zero in the child and the child's PID in the parent. `waitpid()` collects the chosen child's status and releases its exit record.
